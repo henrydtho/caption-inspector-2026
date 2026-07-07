@@ -81,6 +81,18 @@
 DYLIB_NAME = libci.1.0.0.dylib
 
 UNAME := $(shell uname)
+FFMPEG_PREFIX := $(shell if command -v brew >/dev/null 2>&1; then brew --prefix ffmpeg 2>/dev/null; fi)
+FFMPEG_CFLAGS := $(shell if command -v pkg-config >/dev/null 2>&1; then pkg-config --cflags libavformat libavcodec libavutil 2>/dev/null; fi)
+FFMPEG_LIBDIRS := $(shell if command -v pkg-config >/dev/null 2>&1; then pkg-config --libs-only-L libavformat libavcodec libavutil 2>/dev/null; fi)
+FFMPEG_LIBS := $(shell if command -v pkg-config >/dev/null 2>&1; then pkg-config --libs-only-l libavformat libavcodec libavutil 2>/dev/null; fi)
+
+ifeq ($(strip $(FFMPEG_LIBS)),)
+ifneq ($(strip $(FFMPEG_PREFIX)),)
+FFMPEG_CFLAGS := -I$(FFMPEG_PREFIX)/include
+FFMPEG_LIBDIRS := -L$(FFMPEG_PREFIX)/lib
+FFMPEG_LIBS := -lavformat -lavcodec -lavutil
+endif
+endif
 
 SRC_OBJS = mcc_file.o    \
            mov_file.o    \
@@ -116,15 +128,15 @@ OBJS_WITH_PATH = $(SRC_OBJS_WITH_PATH) $(XFORM_OBJS_WITH_PATH) $(SINK_OBJS_WITH_
 OBJS_IN_OBJ_DIR = $(foreach OBJS, $(OBJS), ../obj/$(OBJS))
 
 ifeq ($(UNAME), Linux)
-C_FLAGS = -Wpedantic -Wno-deprecated-declarations -Wall -fno-strict-aliasing -fPIC -DPIC
-SO_FLAGS = -shared -W -L/usr/local/lib -lavformat -lavcodec -lavutil -luuid
-LD_FLAGS = -L/usr/local/lib -luuid -lm -lz
-LD_FLAGS_FFMPEG = -lavformat -lavcodec -lavutil
+C_FLAGS = -Wpedantic -Wno-deprecated-declarations -Wall -fno-strict-aliasing -fPIC -DPIC $(FFMPEG_CFLAGS)
+SO_FLAGS = -shared -W $(FFMPEG_LIBDIRS) $(FFMPEG_LIBS) -luuid
+LD_FLAGS = $(FFMPEG_LIBDIRS) -luuid -lm -lz
+LD_FLAGS_FFMPEG = $(FFMPEG_LIBS)
 else
-C_FLAGS = -Wpedantic -Wno-deprecated-declarations
-SO_FLAGS = -dynamiclib -undefined suppress -flat_namespace -L/usr/local/lib -lavformat -lavcodec -lavutil
-LD_FLAGS = -L/usr/local/lib -lz
-LD_FLAGS_FFMPEG = -lavformat -lavcodec -lavutil
+C_FLAGS = -Wpedantic -Wno-deprecated-declarations $(FFMPEG_CFLAGS)
+SO_FLAGS = -dynamiclib -undefined suppress -flat_namespace $(FFMPEG_LIBDIRS) $(FFMPEG_LIBS)
+LD_FLAGS = $(FFMPEG_LIBDIRS) -lz
+LD_FLAGS_FFMPEG = $(FFMPEG_LIBS)
 endif
 
 -include ../obj/$(OBJS:.o=.d)

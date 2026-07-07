@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# -*- coding: latin-1 -*- 
+# -*- coding: utf-8 -*- 
 
 import ctypes
 import os
@@ -46,7 +46,7 @@ if __name__ == "__main__":
 #            exit(1)
         date_str = str(datetime.now().strftime('%Y_%m_%d__%H_%M_%S'))
         out_file_name = date_str + '_test_output'
-        file = open(out_file_name + '.xml', "w")
+        file = open(out_file_name + '.xml', "w", encoding="utf-8", newline="\n")
         file.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
         file.write("<testsuites name=\"Caption Inspector " + exe_ver + " Tests\">\n")
         file.close()

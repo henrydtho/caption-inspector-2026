@@ -139,3 +139,48 @@ Python code, making sure that it knows where to find the shared library with the
 The Caption Inspector code that makes this possible, and the library it generates, can likely be reused for other high
 level languages such as Java/JNI, Golang/Cgo, etc. No work has been done in those languages, but if you do end up using
 it in a new language, please consider submitting the results back to the repository.
+
+Local Caption Inspector App
+---------------------------
+
+A desktop app is included at `python/caption_inspector_app.py` for inspecting decoded caption tracks with a file picker dialog and
+an in-window test results pane. The launcher uses the existing Python shim and shared library and starts the desktop app
+by default.
+
+```
+make app
+```
+
+The desktop app will build the shared library if needed and then open a local GUI with:
+
+* a browse dialog for selecting supported files
+* a run-check button to execute the decode test
+* a results window that shows track events, transcript text, and decoder output
+
+On macOS, a root-level app bundle is also included at `Caption Inspector.app`. You can launch it from Finder like any
+other app, or open it from the terminal with:
+
+```
+open "Caption Inspector.app"
+```
+
+If Homebrew or Python 3 are missing on first launch, the app now prompts you to install them and opens Terminal to run
+the installer commands. After installation completes, click Retry in the prompt and launch will continue.
+
+You can also validate the launcher without starting the UI:
+
+```
+make app-check
+```
+
+A web app remains available at `python/app.py` if you prefer the browser workflow. Install the dependency first and then
+launch it with:
+
+```
+make sharedlib
+python3 -m pip install -r python/requirements-app.txt
+make web-app
+```
+
+The app will detect the shared library in the `python/` directory automatically. If you need to point it at a different
+build, set the environment variable `CAPTION_INSPECTOR_LIBRARY` before starting Streamlit.

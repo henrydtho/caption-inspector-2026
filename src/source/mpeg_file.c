@@ -42,6 +42,7 @@
 
 #ifndef DONT_COMPILE_FFMPEG
 static void loggingCallback( void*, int, const char*, va_list );
+static void releaseMpegFileContext( Context* );
 #endif
 
 /*----------------------------------------------------------------------------*/
@@ -71,10 +72,14 @@ boolean MpegFileInitialize( Context* rootCtxPtr, uint8 bailAfterMins ) {
 
     int ret = 0;
     int stream_index = 0;
-    AVCodec *dec = NULL;
+    const AVCodec *dec = NULL;
 
     rootCtxPtr->mpegFileCtxPtr = malloc(sizeof(MpegFileCtx));
     MpegFileCtx* ctxPtr = rootCtxPtr->mpegFileCtxPtr;
+
+    ctxPtr->formatContext = NULL;
+    ctxPtr->decoderContext = NULL;
+    ctxPtr->frame = NULL;
 
     ctxPtr->firstPts = 0;
     ctxPtr->ccCountMismatchErrors = 0;
@@ -109,8 +114,7 @@ boolean MpegFileInitialize( Context* rootCtxPtr, uint8 bailAfterMins ) {
             default:
                 LOG(DEBUG_LEVEL_FATAL, DBG_MPEG_FILE, "EXIT_READ_ERROR --- Failed to open file: Reason unknown. --- Looking Here: %s", filePath);
         }
-        free(ctxPtr);
-        rootCtxPtr->mpegFileCtxPtr = NULL;
+        releaseMpegFileContext(rootCtxPtr);
         return FALSE;
     }
 
@@ -126,9 +130,6 @@ boolean MpegFileInitialize( Context* rootCtxPtr, uint8 bailAfterMins ) {
 
     ctxPtr->fileSize = length;
     close(fdesc);
-
-    avcodec_register_all();
-    av_register_all();
 
     switch( GetMinDebugLevel(DBG_FF_MPEG) ) {
         case DEBUG_LEVEL_FATAL:
@@ -159,16 +160,14 @@ boolean MpegFileInitialize( Context* rootCtxPtr, uint8 bailAfterMins ) {
         filePath[0] = '\0';
         getcwd(filePath, sizeof(filePath));
         av_log(NULL,AV_LOG_ERROR,"could not open input(%s) format. Looking Here: %s\n", rootCtxPtr->config.inputFilename, filePath);
-        free(ctxPtr);
-        rootCtxPtr->mpegFileCtxPtr = NULL;
+        releaseMpegFileContext(rootCtxPtr);
         return FALSE;
     }
 
     ret = avformat_find_stream_info(ctxPtr->formatContext,NULL);
     if( ret < 0 ) {
         av_log(NULL,AV_LOG_ERROR,"could not find any stream\n");
-        free(ctxPtr);
-        rootCtxPtr->mpegFileCtxPtr = NULL;
+        releaseMpegFileContext(rootCtxPtr);
         return FALSE;
     }
 
@@ -176,24 +175,41 @@ boolean MpegFileInitialize( Context* rootCtxPtr, uint8 bailAfterMins ) {
     ret = av_find_best_stream(ctxPtr->formatContext, AVMEDIA_TYPE_VIDEO, -1, -1, &dec, 0);
     if( ret < 0 ) {
         av_log(NULL, AV_LOG_ERROR, "no suitable subtitle or caption\n");
-        free(ctxPtr);
-        rootCtxPtr->mpegFileCtxPtr = NULL;
+        releaseMpegFileContext(rootCtxPtr);
         return FALSE;
     }
 
     stream_index = ret;
-    ctxPtr->decoderContext = ctxPtr->formatContext->streams[stream_index]->codec;
+    ctxPtr->decoderContext = avcodec_alloc_context3(dec);
+    if( !ctxPtr->decoderContext ) {
+        av_log(NULL,AV_LOG_ERROR,"unable to allocate codec context\n");
+        releaseMpegFileContext(rootCtxPtr);
+        return FALSE;
+    }
+
+    ret = avcodec_parameters_to_context(ctxPtr->decoderContext,
+                                        ctxPtr->formatContext->streams[stream_index]->codecpar);
+    if( ret < 0 ) {
+        av_log(NULL,AV_LOG_ERROR,"unable to copy codec parameters\n");
+        releaseMpegFileContext(rootCtxPtr);
+        return FALSE;
+    }
+
     ctxPtr->streamIndex = stream_index;
     ret = avcodec_open2(ctxPtr->decoderContext, dec, NULL);
     if( ret < 0 ) {
         av_log(NULL,AV_LOG_ERROR,"unable to open codec\n");
-        free(ctxPtr);
-        rootCtxPtr->mpegFileCtxPtr = NULL;
+        releaseMpegFileContext(rootCtxPtr);
         return FALSE;
     }
 
     //Initialize frame where input frame will be stored
     ctxPtr->frame = av_frame_alloc();
+    if( !ctxPtr->frame ) {
+        av_log(NULL,AV_LOG_ERROR,"unable to allocate frame\n");
+        releaseMpegFileContext(rootCtxPtr);
+        return FALSE;
+    }
 
     AVRational retval = av_guess_frame_rate(ctxPtr->formatContext, ctxPtr->formatContext->streams[stream_index], ctxPtr->frame);
     ctxPtr->frameRatePerSecTimesOneHundred = ((retval.num * 100)/retval.den);
@@ -294,7 +310,6 @@ uint8 MpegFileProcNextBuffer( Context* rootCtxPtr, boolean* isDonePtr ) {
     
     while( TRUE ) {
         int retval = 0;
-        int got_frame;
         AVPacket packet;
         int64 pts = 0;
 
@@ -304,86 +319,102 @@ uint8 MpegFileProcNextBuffer( Context* rootCtxPtr, boolean* isDonePtr ) {
         if( retval == AVERROR_EOF ) {
             *isDonePtr = TRUE;
             Sinks sinks = ctxPtr->sinks;
-            free(ctxPtr);
-            rootCtxPtr->mpegFileCtxPtr = NULL;
+            releaseMpegFileContext(rootCtxPtr);
             return ShutdownSinks(rootCtxPtr, &sinks);
         } else if( retval < 0 ) {
             av_log(NULL, AV_LOG_ERROR, "not able to read the packet\n");
             return FALSE;
         } else if( packet.stream_index != ctxPtr->streamIndex ) {
+            av_packet_unref(&packet);
             continue;
         }
-        
-        retval = avcodec_decode_video2( ctxPtr->decoderContext, ctxPtr->frame, &got_frame, &packet );
-        if( ctxPtr->firstPts == 0 ) {
-// TODO - Need to account for rollover
-            ctxPtr->firstPts = packet.pts;
-        }
 
+        retval = avcodec_send_packet( ctxPtr->decoderContext, &packet );
+        av_packet_unref(&packet);
         if( retval < 0 ) {
             av_log(NULL,AV_LOG_ERROR,"unable to decode packet\n");
             return FALSE;
-        } else if( !got_frame ) {
-            continue;
         }
-        
-        for( int i = 0; i < ctxPtr->frame->nb_side_data; i++ ) {
-            if(ctxPtr->frame->side_data[i]->type == AV_FRAME_DATA_A53_CC) {
-                ctxPtr->frame->pts = av_frame_get_best_effort_timestamp(ctxPtr->frame);
 
-                pts = (((ctxPtr->frame->pts - ctxPtr->firstPts) * ctxPtr->formatContext->streams[ctxPtr->streamIndex]->time_base.num)) /
-                       (ctxPtr->formatContext->streams[ctxPtr->streamIndex]->time_base.den / 1000);
-
-                if(ctxPtr->frame->side_data[i]->size > BUFSIZE) {
-                    av_log(NULL,AV_LOG_ERROR,"Please consider increasing length of data\n");
-                } else {
-                    memcpy(ctxPtr->buffer, ctxPtr->frame->side_data[i]->data,
-                           ctxPtr->frame->side_data[i]->size);
-                    ctxPtr->len = ctxPtr->frame->side_data[i]->size;
-                }
+        while( TRUE ) {
+            retval = avcodec_receive_frame( ctxPtr->decoderContext, ctxPtr->frame );
+            if( retval == AVERROR(EAGAIN) || retval == AVERROR_EOF ) {
+                break;
+            } else if( retval < 0 ) {
+                av_log(NULL,AV_LOG_ERROR,"unable to decode frame\n");
+                return FALSE;
             }
-        }
 
-        if( ctxPtr->bailNoCaptions != 0 ) {
-            CaptionTime captionTime;
-            CaptionTimeFromPts(&captionTime, pts);
-            if (captionTime.minute >= ctxPtr->bailNoCaptions) {
-                LOG(DEBUG_LEVEL_WARN, DBG_MPEG_FILE, "Unable to find Captions after %d mins. Abandoning.", captionTime.minute);
-                *isDonePtr = TRUE;
-                Sinks sinks = ctxPtr->sinks;
-                free(ctxPtr);
-                rootCtxPtr->mpegFileCtxPtr = NULL;
-                return ShutdownSinks(rootCtxPtr, &sinks);
-            }
-        }
+            for( int i = 0; i < ctxPtr->frame->nb_side_data; i++ ) {
+                if(ctxPtr->frame->side_data[i]->type == AV_FRAME_DATA_A53_CC) {
+                    int64 bestEffortPts = ctxPtr->frame->best_effort_timestamp;
+                    if( bestEffortPts == AV_NOPTS_VALUE ) {
+                        bestEffortPts = ctxPtr->frame->pts;
+                    }
 
-        if( ctxPtr->len != 0 ) {
-            ASSERT(!(ctxPtr->len % 3));
-            uint8 ccCount = numCcConstructsFromFramerate(ctxPtr->frameRatePerSecTimesOneHundred);
-            if( ccCount != (ctxPtr->len / 3) ) {
-                ctxPtr->ccCountMismatchErrors++;
-                if( ctxPtr->ccCountMismatchErrors < 5) {
-                    LOG(DEBUG_LEVEL_WARN, DBG_MPEG_FILE, "Mismatch in CC Count Expected: %d vs Actual: %d", ccCount, (ctxPtr->len / 3));
-                } else if( ctxPtr->ccCountMismatchErrors == 5) {
-                    LOG(DEBUG_LEVEL_WARN, DBG_MPEG_FILE, "Mismatch in CC Count Expected: %d vs Actual: %d. Suppressing Subsequent Error Messages.", ccCount, (ctxPtr->len / 3));
+                    if( ctxPtr->firstPts == 0 && bestEffortPts != AV_NOPTS_VALUE ) {
+// TODO - Need to account for rollover
+                        ctxPtr->firstPts = bestEffortPts;
+                    }
+
+                    pts = (((bestEffortPts - ctxPtr->firstPts) * ctxPtr->formatContext->streams[ctxPtr->streamIndex]->time_base.num)) /
+                           (ctxPtr->formatContext->streams[ctxPtr->streamIndex]->time_base.den / 1000);
+
+                    if(ctxPtr->frame->side_data[i]->size > BUFSIZE) {
+                        av_log(NULL,AV_LOG_ERROR,"Please consider increasing length of data\n");
+                    } else {
+                        memcpy(ctxPtr->buffer, ctxPtr->frame->side_data[i]->data,
+                               ctxPtr->frame->side_data[i]->size);
+                        ctxPtr->len = ctxPtr->frame->side_data[i]->size;
+                    }
                 }
             }
 
-            Buffer* outputBuffer = NewBuffer(BUFFER_TYPE_BYTES, ctxPtr->len);
-            outputBuffer->captionTime.frameRatePerSecTimesOneHundred = ctxPtr->frameRatePerSecTimesOneHundred;
-            outputBuffer->captionTime.dropframe = ctxPtr->isDropframe;
-            CaptionTimeFromPts(&outputBuffer->captionTime, pts);
-            outputBuffer->numElements = outputBuffer->maxNumElements;
-            memcpy(outputBuffer->dataPtr, ctxPtr->buffer, ctxPtr->len);
-
-            uint8 returnval = PassToSinks(rootCtxPtr, outputBuffer, &ctxPtr->sinks);
-            if( returnval == FIRST_TEXT_FOUND ) {
-                if( ctxPtr->bailNoCaptions != 0 ) {
-                    ctxPtr->bailNoCaptions = 0;
+            if( ctxPtr->bailNoCaptions != 0 ) {
+                CaptionTime captionTime;
+                CaptionTimeFromPts(&captionTime, pts);
+                if (captionTime.minute >= ctxPtr->bailNoCaptions) {
+                    LOG(DEBUG_LEVEL_WARN, DBG_MPEG_FILE, "Unable to find Captions after %d mins. Abandoning.", captionTime.minute);
+                    *isDonePtr = TRUE;
+                    Sinks sinks = ctxPtr->sinks;
+                    av_frame_unref(ctxPtr->frame);
+                    releaseMpegFileContext(rootCtxPtr);
+                    return ShutdownSinks(rootCtxPtr, &sinks);
                 }
-                returnval = PIPELINE_SUCCESS;
             }
-            return returnval;
+
+            if( ctxPtr->len != 0 ) {
+                ASSERT(!(ctxPtr->len % 3));
+                uint8 ccCount = numCcConstructsFromFramerate(ctxPtr->frameRatePerSecTimesOneHundred);
+                if( ccCount != (ctxPtr->len / 3) ) {
+                    ctxPtr->ccCountMismatchErrors++;
+                    if( ctxPtr->ccCountMismatchErrors < 5) {
+                        LOG(DEBUG_LEVEL_WARN, DBG_MPEG_FILE, "Mismatch in CC Count Expected: %d vs Actual: %d", ccCount, (ctxPtr->len / 3));
+                    } else if( ctxPtr->ccCountMismatchErrors == 5) {
+                        LOG(DEBUG_LEVEL_WARN, DBG_MPEG_FILE, "Mismatch in CC Count Expected: %d vs Actual: %d. Suppressing Subsequent Error Messages.", ccCount, (ctxPtr->len / 3));
+                    }
+                }
+
+                Buffer* outputBuffer = NewBuffer(BUFFER_TYPE_BYTES, ctxPtr->len);
+                outputBuffer->captionTime.frameRatePerSecTimesOneHundred = ctxPtr->frameRatePerSecTimesOneHundred;
+                outputBuffer->captionTime.dropframe = ctxPtr->isDropframe;
+                CaptionTimeFromPts(&outputBuffer->captionTime, pts);
+                outputBuffer->numElements = outputBuffer->maxNumElements;
+                memcpy(outputBuffer->dataPtr, ctxPtr->buffer, ctxPtr->len);
+
+                uint8 returnval = PassToSinks(rootCtxPtr, outputBuffer, &ctxPtr->sinks);
+                if( returnval == FIRST_TEXT_FOUND ) {
+                    if( ctxPtr->bailNoCaptions != 0 ) {
+                        ctxPtr->bailNoCaptions = 0;
+                    }
+                    returnval = PIPELINE_SUCCESS;
+                }
+
+                av_frame_unref(ctxPtr->frame);
+                return returnval;
+            }
+
+            av_frame_unref(ctxPtr->frame);
         }
     }
 #else
@@ -435,4 +466,34 @@ static void loggingCallback( void* ptr, int level, const char* fmt, va_list vl )
 
     DebugLog( dbgLevel, DBG_FF_MPEG, "FFMPEG", 0, message );
 }  // loggingCallback()
+
+/*------------------------------------------------------------------------------
+ | NAME:
+ |    ReleaseMpegFileContext()
+ |
+ | DESCRIPTION:
+ |    Releases FFmpeg allocations owned by the MPEG file context.
+ -------------------------------------------------------------------------------*/
+static void releaseMpegFileContext( Context* rootCtxPtr ) {
+    if( !rootCtxPtr || !rootCtxPtr->mpegFileCtxPtr ) {
+        return;
+    }
+
+    MpegFileCtx* ctxPtr = rootCtxPtr->mpegFileCtxPtr;
+
+    if( ctxPtr->frame ) {
+        av_frame_free(&ctxPtr->frame);
+    }
+
+    if( ctxPtr->decoderContext ) {
+        avcodec_free_context(&ctxPtr->decoderContext);
+    }
+
+    if( ctxPtr->formatContext ) {
+        avformat_close_input(&ctxPtr->formatContext);
+    }
+
+    free(ctxPtr);
+    rootCtxPtr->mpegFileCtxPtr = NULL;
+}
 #endif

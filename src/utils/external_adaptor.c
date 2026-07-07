@@ -374,6 +374,12 @@ boolean ExtrnlAdptrPlumbFileDecodePipeline( char* inputFilename, uint32 framerat
                 return FALSE;
             }
 
+            retval = SccFileAddSink(&rootContext, SccEncodeInitialize(&rootContext));
+            if( retval == FALSE ) {
+                LOG(DEBUG_LEVEL_ERROR, DBG_EXT_ADPT, "Problem Establishing Pipeline, bailing.");
+                return FALSE;
+            }
+
             retval = SccEncodeAddSink(&rootContext, Line21DecodeInitialize(&rootContext, FALSE));
             if( retval == FALSE ) {
                 LOG(DEBUG_LEVEL_ERROR, DBG_EXT_ADPT, "Problem Establishing Pipeline, bailing.");

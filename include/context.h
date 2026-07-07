@@ -24,6 +24,7 @@
 #include <stdlib.h>
 
 #ifndef DONT_COMPILE_FFMPEG
+#include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #endif
 

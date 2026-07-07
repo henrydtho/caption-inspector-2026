@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# -*- coding: latin-1 -*-
+# -*- coding: utf-8 -*-
 
 # Copyright 2019 Comcast Cable Communications Management, LLC
 #
@@ -18,9 +18,31 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import ctypes
+import os
 from ctypes import *
 
-CAPTION_CONVERTER_LIBRARY = './libcttp.1.0.0.dylib'
+_THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+_DEFAULT_LIBRARY_NAMES = (
+    'libci.1.0.0.dylib',
+    'libci.so',
+    'libci.dylib',
+)
+
+
+def resolve_caption_converter_library():
+    override_path = os.environ.get('CAPTION_INSPECTOR_LIBRARY')
+    if override_path:
+        return os.path.abspath(override_path)
+
+    for library_name in _DEFAULT_LIBRARY_NAMES:
+        candidate = os.path.join(_THIS_DIR, library_name)
+        if os.path.exists(candidate):
+            return candidate
+
+    return os.path.join(_THIS_DIR, _DEFAULT_LIBRARY_NAMES[0])
+
+
+CAPTION_CONVERTER_LIBRARY = resolve_caption_converter_library()
 
 # Debugging
 # WARNING: This array needs to match the defines in debug.h
@@ -167,22 +189,53 @@ class Line21Code(Structure):
 # Python Class
 channel_trans_dict = {1: '1', 2: '2', 3: '3', 4: '4', 5: '1&3', 6: '2&4'}
 
-basic_na_char_set_dict = {42: 'á', 92: 'é', 94: 'í', 95: 'ó', 96: 'ú', 123: 'ç', 124: '÷', 125: 'Ñ', 126: 'ñ', 127: '?'}
+basic_na_char_set_dict = {
+    42: '\u00e1',
+    92: '\u00e9',
+    94: '\u00ed',
+    95: '\u00f3',
+    96: '\u00fa',
+    123: '\u00e7',
+    124: '\u00f7',
+    125: '\u00d1',
+    126: '\u00f1',
+    127: '\u25a0',
+}
 
-special_na_char_set_dict = {48: '®', 49: '°', 50: '½', 51: '¿', 52: '?', 53: '¢', 54: '£', 55: '?',
-                            56: 'à', 57: '?', 58: 'è', 59: 'â', 60: 'ê', 61: 'î', 62: 'ô', 63: 'û'}
+special_na_char_set_dict = {
+    48: '\u00ae',
+    49: '\u00b0',
+    50: '\u00bd',
+    51: '\u00bf',
+    52: '\u2122',
+    53: '\u00a2',
+    54: '\u00a3',
+    55: '\u266a',
+    56: '\u00e0',
+    57: '\u2610',
+    58: '\u00e8',
+    59: '\u00e2',
+    60: '\u00ea',
+    61: '\u00ee',
+    62: '\u00f4',
+    63: '\u00fb',
+}
 
 EXTENDED_WE_CHAR_SET_SF = 0
-extended_we_char_set_sf_dict = {32: 'Á', 33: 'É', 34: 'Ó', 35: 'Ú', 36: 'Ü', 37: 'ü', 38: '´', 39: '¡',
-                                40: '*', 41: "'", 42: '-', 43: '©', 44: '?', 45: '·', 46: '"', 47: '"',
-                                48: 'À', 49: 'Â', 50: 'Ç', 51: 'È', 52: 'Ê', 53: 'Ë', 54: 'ë', 55: 'Î',
-                                56: 'Ï', 57: 'ï', 58: 'Ô', 59: 'Ù', 60: 'ù', 61: 'Û', 62: '«', 63: '»'}
+extended_we_char_set_sf_dict = {
+    32: '\u00c1', 33: '\u00c9', 34: '\u00d3', 35: '\u00da', 36: '\u00dc', 37: '\u00fc', 38: '\u00b4', 39: '\u00a1',
+    40: '*', 41: "'", 42: '-', 43: '\u00a9', 44: '\u2120', 45: '\u00b7', 46: '"', 47: '"',
+    48: '\u00c0', 49: '\u00c2', 50: '\u00c7', 51: '\u00c8', 52: '\u00ca', 53: '\u00cb', 54: '\u00eb', 55: '\u00ce',
+    56: '\u00cf', 57: '\u00ef', 58: '\u00d4', 59: '\u00d9', 60: '\u00f9', 61: '\u00db', 62: '\u00ab', 63: '\u00bb',
+}
 
 EXTENDED_WE_CHAR_SET_DG = 1
-extended_we_char_set_dg_dict = {32: 'Ã', 33: 'ã', 34: 'Í', 35: 'Ì',  36: 'ì', 37: 'Ò', 38: 'ò', 39: 'Õ',
-                                40: 'õ', 41: '{', 42: '}', 43: '\\', 44: '^', 45: '_', 46: '|', 47: '~',
-                                48: 'Ä', 49: 'ä', 50: 'Ö', 51: 'ö',  52: 'ß', 53: '¥', 54: '¤', 55: '|',
-                                56: 'Å', 57: 'å', 58: 'Ø', 59: 'ø',  60: '+', 61: '+', 62: '+', 63: '+'}
+extended_we_char_set_dg_dict = {
+    32: '\u00c3', 33: '\u00e3', 34: '\u00cd', 35: '\u00cc', 36: '\u00ec', 37: '\u00d2', 38: '\u00f2', 39: '\u00d5',
+    40: '\u00f5', 41: '{', 42: '}', 43: '\\', 44: '^', 45: '_', 46: '|', 47: '~',
+    48: '\u00c4', 49: '\u00e4', 50: '\u00d6', 51: '\u00f6', 52: '\u00df', 53: '\u00a5', 54: '\u00a4', 55: '|',
+    56: '\u00c5', 57: '\u00e5', 58: '\u00d8', 59: '\u00f8', 60: '+', 61: '+', 62: '+', 63: '+',
+}
 
 
 class Line21TextString:
@@ -194,11 +247,11 @@ class Line21TextString:
     def add_basic_na_chars(self, char1, char2):
         if char1 in basic_na_char_set_dict:
             self.str = self.str + basic_na_char_set_dict[char1]
-        elif char1 is not 0:
+        elif char1 != 0:
             self.str = self.str + chr(char1)
         if char2 in basic_na_char_set_dict:
             self.str = self.str + basic_na_char_set_dict[char2]
-        elif char2 is not 0:
+        elif char2 != 0:
             self.str = self.str + chr(char2)
 
     def add_special_na_char(self, chan, char):
@@ -257,9 +310,9 @@ class PreambleAccessCode:
         self.is_underlined = bool(is_underlined)
         self.row_number = row
         if color is not None:
-            self.color = pac_color_trans_dict[color]
+            self.color = pac_color_trans_dict.get(color, 'Unknown')
         if cursor is not None:
-            self.cursor_column = pac_cursor_column_trans_dict[cursor]
+            self.cursor_column = pac_cursor_column_trans_dict.get(cursor, cursor)
 
     def __str__(self):
         if hasattr(self, 'cursor_column'):
@@ -325,8 +378,7 @@ class Singleton(type):
 
 
 # Python3 Version --- class CaptioningEngine(Object, metaclass=Singleton):
-class CaptioningEngine:
-    __metaclass__ = Singleton
+class CaptioningEngine(metaclass=Singleton):
     __l21_cc_list = [[], [], [], []]
     __dtvcc_cc_list = [[] for _ in range(16)]
 
@@ -341,8 +393,8 @@ class CaptioningEngine:
         return self.__l21_cc_list[chan-1]
 
     def get_l21_text_string(self, chan, caption_time):
-        if len(self.__l21_cc_list[chan-1]) is 0 or isinstance(self.__l21_cc_list[chan-1][-1],
-                                                              Line21TextString) is False:
+        if len(self.__l21_cc_list[chan-1]) == 0 or isinstance(self.__l21_cc_list[chan-1][-1],
+                                                               Line21TextString) is False:
             text_string = Line21TextString(caption_time)
         else:
             text_string = self.__l21_cc_list[chan-1][-1]
@@ -356,8 +408,8 @@ class CaptioningEngine:
         return self.__dtvcc_cc_list[srvc-1]
 
     def get_dtvcc_text_string(self, srvc, caption_time):
-        if len(self.__dtvcc_cc_list[srvc-1]) is 0 or isinstance(self.__dtvcc_cc_list[srvc-1][-1],
-                                                                DtvccTextString) is False:
+        if len(self.__dtvcc_cc_list[srvc-1]) == 0 or isinstance(self.__dtvcc_cc_list[srvc-1][-1],
+                                                                 DtvccTextString) is False:
             text_string = DtvccTextString(caption_time)
         else:
             text_string = self.__dtvcc_cc_list[srvc-1][-1]
@@ -544,18 +596,18 @@ class RgbColor:
         return 'R%dG%dB%d' % (self.red, self.green, self.blue)
 
 
-g1_char_set_dict = {0xA0: ' ', 0xA1: '¡', 0xA2: '?', 0xA3: '?', 0xA4: '¤', 0xA5: '?', 0xA6: '¦', 0xA7: '§',
-                    0xA8: '¨', 0xA9: '©', 0xAA: 'ª', 0xAB: '«', 0xAC: '?', 0xAD: '-', 0xAE: '®', 0xAF: '?',
-                    0xB0: '°', 0xB1: '±', 0xB2: '²', 0xB3: '³', 0xB4: '´', 0xB5: 'µ', 0xB6: '¶', 0xB7: '·',
-                    0xB8: '¸', 0xB9: '¹', 0xBA: 'º', 0xBB: '»', 0xBC: '¼', 0xBD: '½', 0xBE: '¾', 0xBF: '¿',
-                    0xC0: 'À', 0xC1: 'Á', 0xC2: 'Â', 0xC3: 'Ã', 0xC4: 'Ä', 0xC5: 'Å', 0xC6: 'Æ', 0xC7: 'Ç',
-                    0xC8: 'È', 0xC9: 'É', 0xCA: 'Ê', 0xCB: 'Ë', 0xCC: 'Ì', 0xCD: 'Í', 0xCE: 'Î', 0xCF: 'Ï',
-                    0xD0: 'Ð', 0xD1: 'Ñ', 0xD2: 'Ò', 0xD3: 'Ó', 0xD4: 'Ô', 0xD5: 'Õ', 0xD6: 'Ö', 0xD7: '×',
-                    0xD8: 'Ø', 0xD9: 'Ù', 0xDA: 'Ú', 0xDB: 'Û', 0xDC: 'Ü', 0xDD: 'Ý', 0xDE: 'Þ', 0xDF: 'ß',
-                    0xE0: 'à', 0xE1: 'á', 0xE2: 'â', 0xE3: 'ã', 0xE4: 'ä', 0xE5: 'å', 0xE6: 'æ', 0xE7: 'ç',
-                    0xE8: 'è', 0xE9: 'é', 0xEA: 'ê', 0xEB: 'ë', 0xEC: 'ì', 0xED: 'í', 0xEE: 'î', 0xEF: 'ï',
-                    0xF0: 'ð', 0xF1: 'ñ', 0xF2: 'ò', 0xF3: 'ó', 0xF4: 'ô', 0xF5: 'õ', 0xF6: '÷', 0xF7: 'ø',
-                    0xF8: 'ù', 0xF9: 'ú', 0xFA: 'ü', 0xFB: 'û', 0xFC: 'ü', 0xFD: 'ý', 0xFE: 'þ', 0xFF: 'ÿ'}
+g1_char_set_dict = {0xA0: ' ', 0xA1: 'ï¿½', 0xA2: '?', 0xA3: '?', 0xA4: 'ï¿½', 0xA5: '?', 0xA6: 'ï¿½', 0xA7: 'ï¿½',
+                    0xA8: 'ï¿½', 0xA9: 'ï¿½', 0xAA: 'ï¿½', 0xAB: 'ï¿½', 0xAC: '?', 0xAD: '-', 0xAE: 'ï¿½', 0xAF: '?',
+                    0xB0: 'ï¿½', 0xB1: 'ï¿½', 0xB2: 'ï¿½', 0xB3: 'ï¿½', 0xB4: 'ï¿½', 0xB5: 'ï¿½', 0xB6: 'ï¿½', 0xB7: 'ï¿½',
+                    0xB8: 'ï¿½', 0xB9: 'ï¿½', 0xBA: 'ï¿½', 0xBB: 'ï¿½', 0xBC: 'ï¿½', 0xBD: 'ï¿½', 0xBE: 'ï¿½', 0xBF: 'ï¿½',
+                    0xC0: 'ï¿½', 0xC1: 'ï¿½', 0xC2: 'ï¿½', 0xC3: 'ï¿½', 0xC4: 'ï¿½', 0xC5: 'ï¿½', 0xC6: 'ï¿½', 0xC7: 'ï¿½',
+                    0xC8: 'ï¿½', 0xC9: 'ï¿½', 0xCA: 'ï¿½', 0xCB: 'ï¿½', 0xCC: 'ï¿½', 0xCD: 'ï¿½', 0xCE: 'ï¿½', 0xCF: 'ï¿½',
+                    0xD0: 'ï¿½', 0xD1: 'ï¿½', 0xD2: 'ï¿½', 0xD3: 'ï¿½', 0xD4: 'ï¿½', 0xD5: 'ï¿½', 0xD6: 'ï¿½', 0xD7: 'ï¿½',
+                    0xD8: 'ï¿½', 0xD9: 'ï¿½', 0xDA: 'ï¿½', 0xDB: 'ï¿½', 0xDC: 'ï¿½', 0xDD: 'ï¿½', 0xDE: 'ï¿½', 0xDF: 'ï¿½',
+                    0xE0: 'ï¿½', 0xE1: 'ï¿½', 0xE2: 'ï¿½', 0xE3: 'ï¿½', 0xE4: 'ï¿½', 0xE5: 'ï¿½', 0xE6: 'ï¿½', 0xE7: 'ï¿½',
+                    0xE8: 'ï¿½', 0xE9: 'ï¿½', 0xEA: 'ï¿½', 0xEB: 'ï¿½', 0xEC: 'ï¿½', 0xED: 'ï¿½', 0xEE: 'ï¿½', 0xEF: 'ï¿½',
+                    0xF0: 'ï¿½', 0xF1: 'ï¿½', 0xF2: 'ï¿½', 0xF3: 'ï¿½', 0xF4: 'ï¿½', 0xF5: 'ï¿½', 0xF6: 'ï¿½', 0xF7: 'ï¿½',
+                    0xF8: 'ï¿½', 0xF9: 'ï¿½', 0xFA: 'ï¿½', 0xFB: 'ï¿½', 0xFC: 'ï¿½', 0xFD: 'ï¿½', 0xFE: 'ï¿½', 0xFF: 'ï¿½'}
 
 g2_char_set_dict = {0x20: ' ', 0x21: ' ', 0x25: '?', 0x2A: '?', 0x2C: '?', 0x30: '?', 0x31: "'", 0x32: "'", 0x33: '?',
                     0x34: '?', 0x35: '?', 0x39: '?', 0x3A: '?', 0x3C: '?', 0x3D: '?', 0x3F: '?', 0x76: '?', 0x77: '?',
@@ -610,7 +662,7 @@ class C0Cmd:
         self.pe16_symbol2 = pe162
 
     def __str__(self):
-        if self.cmd is 'P16':
+        if self.cmd == 'P16':
             return '{' + self.cmd + ':' + str(self.pe16_symbol1) + str(self.pe16_symbol2) + '}'
         else:
             return '{' + self.cmd + '}'
@@ -909,42 +961,41 @@ def data_708_callback(time, dtvcc_data):
     elif dtvcc_data.dtvccType == C0_CMD:
         c0_cmd = C0Cmd(caption_time, dtvcc_data.data.c0cmd.c0CmdCode,
                        dtvcc_data.data.c0cmd.pe16sym1, dtvcc_data.data.c0cmd.pe16sym2)
-        if c0_cmd.cmd is not 'ETX':
+        if c0_cmd.cmd != 'ETX':
             CaptioningEngine().add_dtvcc_cc_element(dtvcc_data.serviceNumber, c0_cmd)
     elif dtvcc_data.dtvccType == C1_CMD:
         c1_cmd = c1_cmd_name_trans_dict[dtvcc_data.data.c1cmd.c1CmdCode]
-        if c1_cmd is 'CW0' or c1_cmd is 'CW1' or c1_cmd is 'CW2' or c1_cmd is 'CW3' or \
-           c1_cmd is 'CW4' or c1_cmd is 'CW5' or c1_cmd is 'CW7':
+        if c1_cmd in ('CW0', 'CW1', 'CW2', 'CW3', 'CW4', 'CW5', 'CW7'):
             set_current_window = SetCurrentWindowCmd(caption_time, c1_cmd, dtvcc_data.data.c1cmd.c1CmdCode-0x80)
             CaptioningEngine().add_dtvcc_cc_element(dtvcc_data.serviceNumber, set_current_window)
-        elif c1_cmd is 'RSV93' or c1_cmd is 'RSV94' or c1_cmd is 'RSV95' or c1_cmd is 'RSV96':
+        elif c1_cmd in ('RSV93', 'RSV94', 'RSV95', 'RSV96'):
             reserved = ReservedCmd(caption_time, c1_cmd)
             CaptioningEngine().add_dtvcc_cc_element(dtvcc_data.serviceNumber, reserved)
-        elif c1_cmd is 'DLC':
+        elif c1_cmd == 'DLC':
             delay_cancel = DelayCancelCmd(caption_time)
             CaptioningEngine().add_dtvcc_cc_element(dtvcc_data.serviceNumber, delay_cancel)
-        elif c1_cmd is 'RST':
+        elif c1_cmd == 'RST':
             reset = ResetCmd(caption_time)
             CaptioningEngine().add_dtvcc_cc_element(dtvcc_data.serviceNumber, reset)
-        elif c1_cmd is 'CLW':
+        elif c1_cmd == 'CLW':
             clear = ClearWindowsCmd(caption_time, dtvcc_data.data.c1cmd.cmdData.windowBitmap)
             CaptioningEngine().add_dtvcc_cc_element(dtvcc_data.serviceNumber, clear)
-        elif c1_cmd is 'DSW':
+        elif c1_cmd == 'DSW':
             display = DisplayWindowsCmd(caption_time, dtvcc_data.data.c1cmd.cmdData.windowBitmap)
             CaptioningEngine().add_dtvcc_cc_element(dtvcc_data.serviceNumber, display)
-        elif c1_cmd is 'HDW':
+        elif c1_cmd == 'HDW':
             hide = HideWindowsCmd(caption_time, dtvcc_data.data.c1cmd.cmdData.windowBitmap)
             CaptioningEngine().add_dtvcc_cc_element(dtvcc_data.serviceNumber, hide)
-        elif c1_cmd is 'TGW':
+        elif c1_cmd == 'TGW':
             toggle = ToggleWindowsCmd(caption_time, dtvcc_data.data.c1cmd.cmdData.windowBitmap)
             CaptioningEngine().add_dtvcc_cc_element(dtvcc_data.serviceNumber, toggle)
-        elif c1_cmd is 'DLW':
+        elif c1_cmd == 'DLW':
             delete = DeleteWindowsCmd(caption_time, dtvcc_data.data.c1cmd.cmdData.windowBitmap)
             CaptioningEngine().add_dtvcc_cc_element(dtvcc_data.serviceNumber, delete)
-        elif c1_cmd is 'DLY':
+        elif c1_cmd == 'DLY':
             delay = DeleteWindowsCmd(caption_time, dtvcc_data.data.c1cmd.cmdData.tenthsOfaSec)
             CaptioningEngine().add_dtvcc_cc_element(dtvcc_data.serviceNumber, delay)
-        elif c1_cmd is 'SPA':
+        elif c1_cmd == 'SPA':
             pen_attrbs = SetPenAttributesCmd(caption_time, dtvcc_data.data.c1cmd.cmdData.penAttributes.penSize,
                                              dtvcc_data.data.c1cmd.cmdData.penAttributes.penOffset,
                                              dtvcc_data.data.c1cmd.cmdData.penAttributes.textTag,
@@ -953,7 +1004,7 @@ def data_708_callback(time, dtvcc_data):
                                              dtvcc_data.data.c1cmd.cmdData.penAttributes.isUnderlined,
                                              dtvcc_data.data.c1cmd.cmdData.penAttributes.isItalic)
             CaptioningEngine().add_dtvcc_cc_element(dtvcc_data.serviceNumber, pen_attrbs)
-        elif c1_cmd is 'SPC':
+        elif c1_cmd == 'SPC':
             fg_color = RgbColor(dtvcc_data.data.c1cmd.cmdData.penColor.fgRed,
                                 dtvcc_data.data.c1cmd.cmdData.penColor.fgGreen,
                                 dtvcc_data.data.c1cmd.cmdData.penColor.fgBlue)
@@ -966,11 +1017,11 @@ def data_708_callback(time, dtvcc_data):
             pen_color = SetPenColorCmd(caption_time, dtvcc_data.data.c1cmd.cmdData.penColor.fgOpacity, fg_color,
                                        dtvcc_data.data.c1cmd.cmdData.penColor.bgOpacity, bg_color, edge_color)
             CaptioningEngine().add_dtvcc_cc_element(dtvcc_data.serviceNumber, pen_color)
-        elif c1_cmd is 'SPL':
+        elif c1_cmd == 'SPL':
             pen_loc = SetPenLocationCmd(caption_time, dtvcc_data.data.c1cmd.cmdData.penLocation.row,
                                         dtvcc_data.data.c1cmd.cmdData.penLocation.column)
             CaptioningEngine().add_dtvcc_cc_element(dtvcc_data.serviceNumber, pen_loc)
-        elif c1_cmd is 'SWA':
+        elif c1_cmd == 'SWA':
             fill_color = RgbColor(dtvcc_data.data.c1cmd.cmdData.winAttributes.fillRedColorComp,
                                   dtvcc_data.data.c1cmd.cmdData.winAttributes.fillGreenColorComp,
                                   dtvcc_data.data.c1cmd.cmdData.winAttributes.fillBlueColorComp)
@@ -987,8 +1038,7 @@ def data_708_callback(time, dtvcc_data):
                                                 dtvcc_data.data.c1cmd.cmdData.winAttributes.effectDirection,
                                                 dtvcc_data.data.c1cmd.cmdData.winAttributes.displayEffect)
             CaptioningEngine().add_dtvcc_cc_element(dtvcc_data.serviceNumber, win_attrib)
-        elif c1_cmd is 'DF0' or c1_cmd is 'DF1' or c1_cmd is 'DF2' or c1_cmd is 'DF3' or \
-                c1_cmd is 'DF4' or c1_cmd is 'DF5' or c1_cmd is 'DF7':
+        elif c1_cmd in ('DF0', 'DF1', 'DF2', 'DF3', 'DF4', 'DF5', 'DF7'):
             define_win = DefineWindowCmd(caption_time, c1_cmd, dtvcc_data.data.c1cmd.cmdData.winDefinition.isVisible,
                                          dtvcc_data.data.c1cmd.cmdData.winDefinition.isRowLocked,
                                          dtvcc_data.data.c1cmd.cmdData.winDefinition.isColumnLocked,
