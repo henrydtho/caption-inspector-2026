@@ -1,0 +1,21 @@
+/* TEAM */
+
+	Core Developer: Project contributor
+	From: Denver, Colorado, USA
+
+	Supporting Developer: Project contributor
+	From: Denver, Colorado, USA
+
+	Branding Support: Project contributor
+	From: Denver, Colorado, USA
+
+
+/* THANKS */
+
+	Open Source Developers: You know who you are!
+	From: Everywhere!
+
+/* SITE */
+	Last update: 2019/07/30
+	Language: English
+	Doctype: HTML5

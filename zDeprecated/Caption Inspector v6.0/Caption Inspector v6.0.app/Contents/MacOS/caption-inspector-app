@@ -1,0 +1,188 @@
+#!/bin/zsh
+set -euo pipefail
+
+script_dir="${0:A:h}"
+repo_root="${script_dir}/../Resources"
+log_dir="$HOME/Library/Logs"
+log_file="$log_dir/CaptionInspectorApp.log"
+
+mkdir -p "$log_dir"
+
+log_line() {
+	print -r -- "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$log_file"
+}
+
+show_alert() {
+	local message="$1"
+	/usr/bin/osascript - "$message" <<'OSA' >/dev/null 2>&1 || true
+on run argv
+	display alert "Caption Inspector" message (item 1 of argv) as warning
+end run
+OSA
+}
+
+confirm_install() {
+	local message="$1"
+	/usr/bin/osascript - "$message" <<'OSA' >/dev/null
+on run argv
+	display dialog (item 1 of argv) buttons {"Cancel", "Install"} default button "Install" with icon caution
+	return "install"
+end run
+OSA
+}
+
+confirm_retry() {
+	local message="$1"
+	/usr/bin/osascript - "$message" <<'OSA' >/dev/null
+on run argv
+	display dialog (item 1 of argv) buttons {"Cancel", "Retry"} default button "Retry" with icon note
+	return "retry"
+end run
+OSA
+}
+
+run_in_terminal() {
+	local terminal_command="$1"
+	/usr/bin/osascript - "$terminal_command" <<'OSA' >/dev/null
+on run argv
+	tell application "Terminal"
+		activate
+		do script (item 1 of argv)
+	end tell
+end run
+OSA
+}
+
+find_brew() {
+	for candidate in \
+		/opt/homebrew/bin/brew \
+		/usr/local/bin/brew
+	do
+		if [[ -x "$candidate" ]]; then
+			print -r -- "$candidate"
+			return 0
+		fi
+	done
+
+	if command -v brew >/dev/null 2>&1; then
+		command -v brew
+		return 0
+	fi
+
+	return 1
+}
+
+load_brew_shellenv() {
+	local brew_bin
+	if brew_bin="$(find_brew)"; then
+		eval "$($brew_bin shellenv)"
+	fi
+}
+
+find_python() {
+	for candidate in \
+		/Library/Frameworks/Python.framework/Versions/Current/bin/python3 \
+		/Library/Frameworks/Python.framework/Versions/3.13/bin/python3 \
+		/opt/homebrew/bin/python3 \
+		/usr/local/bin/python3
+	do
+		if [[ -x "$candidate" ]] && "$candidate" -c 'import tkinter' >/dev/null 2>&1; then
+			print -r -- "$candidate"
+			return 0
+		fi
+	done
+
+	if command -v python3 >/dev/null 2>&1 && python3 -c 'import tkinter' >/dev/null 2>&1; then
+		command -v python3
+		return 0
+	fi
+
+	return 1
+}
+
+ensure_homebrew() {
+	local brew_bin
+	if brew_bin="$(find_brew)"; then
+		log_line "Homebrew detected at $brew_bin"
+		return 0
+	fi
+
+	log_line "Homebrew not found"
+	if ! confirm_install "Caption Inspector needs Homebrew to install required runtime dependencies. Install Homebrew now? A Terminal window will open."; then
+		show_alert "Cannot launch without Homebrew."
+		log_line "User declined Homebrew installation"
+		exit 1
+	fi
+
+	local install_cmd
+	install_cmd='NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"; echo; echo "Homebrew install command finished."'
+	run_in_terminal "$install_cmd"
+
+	while ! brew_bin="$(find_brew)"; do
+		if ! confirm_retry "Homebrew is still not detected. Complete the install in Terminal, then click Retry."; then
+			show_alert "Cannot launch without Homebrew."
+			log_line "User cancelled while waiting for Homebrew"
+			exit 1
+		fi
+	done
+
+	log_line "Homebrew installed at $brew_bin"
+}
+
+ensure_python() {
+	local python_bin
+	if python_bin="$(find_python)"; then
+		log_line "Python detected at $python_bin"
+		return 0
+	fi
+
+	log_line "No Tkinter-capable Python was found"
+	if ! confirm_install "Caption Inspector needs Python 3 with Tk support for the desktop UI. Install Python now using Homebrew? A Terminal window will open."; then
+		show_alert "Cannot launch without Python 3."
+		log_line "User declined Python installation"
+		exit 1
+	fi
+
+	load_brew_shellenv
+	local brew_bin
+	if ! brew_bin="$(find_brew)"; then
+		show_alert "Homebrew is required to install Python."
+		log_line "Python install blocked because Homebrew was not found"
+		exit 1
+	fi
+
+	local install_cmd
+	install_cmd="$brew_bin install python; echo; echo \"Python install command finished.\"; echo \"If launch still fails, install Python from python.org for Tk support.\""
+	run_in_terminal "$install_cmd"
+
+	while ! python_bin="$(find_python)"; do
+		if ! confirm_retry "Python with Tk support is still not detected. Complete the install in Terminal, then click Retry."; then
+			show_alert "Cannot launch without Python 3."
+			log_line "User cancelled while waiting for Python"
+			exit 1
+		fi
+	done
+
+	log_line "Python installed at $python_bin"
+}
+
+cd "$repo_root"
+if [[ ! -f python/launch_app.py ]]; then
+	show_alert "This copy of Caption Inspector is incomplete: its application files are missing."
+	log_line "No python/launch_app.py under $repo_root"
+	exit 1
+fi
+ensure_homebrew
+load_brew_shellenv
+ensure_python
+
+python_bin="$(find_python)"
+
+log_line "Launching Caption Inspector with $python_bin"
+log_line "Repo root: $repo_root"
+
+if /usr/bin/arch -arm64 /usr/bin/true >/dev/null 2>&1; then
+	exec /usr/bin/arch -arm64 "$python_bin" python/launch_app.py "$@" >> "$log_file" 2>&1
+fi
+
+exec "$python_bin" python/launch_app.py "$@" >> "$log_file" 2>&1

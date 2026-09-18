@@ -1,0 +1,34 @@
+python/.idea/
+obj/
+python/*.dylib
+golang/libgb.a
+caption-inspector
+cscope.out
+tags
+python/venv
+venv
+python/jobs
+test/examples/*
+test/python/__pycache__/*
+.idea/
+cmake-build-debug/
+*__debug_log.txt
+test/python/libci-test.1.0.0.dylib
+test/python/*.xml
+test/python/*.html
+test/utest__buffer_utils_c
+test/utest__cc_utils_c
+test/utest__external_adaptor_c
+test/utest__output_utils_c
+test/utest__pipeline_utils_c
+test/itest__buffer_utils
+test/itest__pipeline_utils
+
+# Self-contained app bundles produced by packaging/build_offline_app.py.
+# Several hundred MB each: build output, never source.
+/Caption Inspector v*.app/Contents/Resources/runtime/
+/Caption Inspector v*.app/Contents/Resources/vendor/
+/Caption Inspector v*.app/Contents/Resources/models/
+packaging/build/
+packaging/wheels/
+packaging/dist/

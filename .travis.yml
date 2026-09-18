@@ -1,0 +1,28 @@
+language: c
+
+os:
+  - osx
+  - linux
+
+dist: xenial
+
+compiler:
+  - gcc
+  - clang
+matrix:
+    exclude:
+        - os: osx
+          compiler: gcc
+
+services:
+  - docker
+
+script:
+  - make ci_without_ffmpeg
+  - ./caption-inspector --version
+  - make clean
+  - if [ "$TRAVIS_OS_NAME" = "osx" ]; then brew update && brew install ffmpeg cairo && pip install pytest; make caption-inspector; fi
+  - if [ "$TRAVIS_OS_NAME" = "linux" ]; then sudo ./travis_ffmpeg_install.sh; make ci_with_gpac; fi
+  - export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
+  - ./caption-inspector --version
+  - if [ "$TRAVIS_OS_NAME" = "linux" ]; then make docker-test; fi
