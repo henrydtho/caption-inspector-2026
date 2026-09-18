@@ -16,5 +16,5 @@ apt-get install -y ocl-icd-opencl-dev libass-dev libavformat-dev libavutil-dev l
     --disable-lzma --enable-opencl --enable-pthreads
 make
 make install
-git clone https://github.com/YOUR_GITHUB_USER/gpac-caption-extractor.git
+git clone https://github.com/henrydtho/gpac-caption-extractor.git
 cd gpac-caption-extractor && make install

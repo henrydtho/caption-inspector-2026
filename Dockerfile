@@ -27,7 +27,7 @@ RUN apt-get install -y git && apt-get install -y make && apt-get install -y gcc 
 COPY .git/ /app/.git/
 
 # pull and build gpac
-RUN git clone https://github.com/YOUR_GITHUB_USER/gpac-caption-extractor.git && \
+RUN git clone https://github.com/henrydtho/gpac-caption-extractor.git && \
     cp -r /gpac-caption-extractor/include/gpac /usr/local/include && \
     cd gpac-caption-extractor && make gpac && cp libgpac.so /usr/local/lib
 

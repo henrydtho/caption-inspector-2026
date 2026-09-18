@@ -171,7 +171,7 @@ no_ffmpeg: $(OBJS_WITH_PATH) main.o
 
 /usr/local/lib/libgpac.so:
 	@echo "Building MOV Support requires GPAC - $@"
-	@echo "To build GPAC for consumption by Caption Inspector you need the following repo: https://github.com/YOUR_GITHUB_USER/gpac-caption-extractor"
+	@echo "To build GPAC for consumption by Caption Inspector you need the following repo: https://github.com/henrydtho/gpac-caption-extractor"
 	@echo "Build that repo with `make install`, which will add the shared library to /usr/local/lib and add the"
 	@echo "appropriate headers to /usr/local/include. Once that is done you can build Caption Inspector with MOV Support"
 	@exit 1

@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.com/YOUR_GITHUB_USER/caption-inspector.svg?branch=master)](https://travis-ci.com/YOUR_GITHUB_USER/caption-inspector)
+[![Build Status](https://travis-ci.com/henrydtho/caption-inspector-2026.svg?branch=main)](https://travis-ci.com/henrydtho/caption-inspector-2026)
 
 Caption Inspector
 =================
@@ -64,11 +64,11 @@ Building the Caption Inspector Executable Locally with MOV Support
 ------------------------------------------------------------------
 
 Caption Inspector requires the inclusion of the [GPAC][https://gpac.wp.imt.fr/] Library. Specifically a modified library of GPAC which
-gets linked as a shared object is required. This library is located [here][https://github.com/YOUR_GITHUB_USER/gpac-caption-extractor] and must be pulled and built.
+gets linked as a shared object is required. This library is located [here][https://github.com/henrydtho/gpac-caption-extractor] and must be pulled and built.
 Once the GPAC library has been built the same instructions are used as above.
 
 ```
-git clone https://github.com/YOUR_GITHUB_USER/gpac-caption-extractor.git
+git clone https://github.com/henrydtho/gpac-caption-extractor.git
 cd gpac-caption-extractor
 make install
 cd ../caption-inspector
